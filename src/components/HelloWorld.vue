@@ -55,48 +55,75 @@
       </div>
     </div>
   </div>
+
+  <el-dialog v-model="showConnectInfoWindow" title="连接地址" :show-close="false">
+    <el-form label-width="120px">
+      <el-form-item label="Url">
+        <el-input v-model="connectUrl" />
+      </el-form-item>
+      <el-form-item label="Port">
+        <el-input v-model="connectPort" />
+      </el-form-item>
+    </el-form>
+    <el-button type="primary" @click="onClickConnect">连接</el-button>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 
-let ws: WebSocket = new WebSocket('ws://localhost:8765')
-ws.onopen = () => {
-  isConnectedToServer.value = true
-  ElMessage({
-    message: '连接成功',
-    type: 'success',
-  })
-  ws.send(JSON.stringify({
-    'type': 'overview', 
-    'params': {}
-  }))
-}
-ws.onmessage = (evt) => {
-  var received_msg = JSON.parse(evt.data);
-  // console.log(received_msg);
-  
-  if (received_msg.status === 200) {
-    const received_msg_data = received_msg.data
-    if (received_msg.type === 'overview') {
-      datasetList.value = received_msg_data.datasets
-      splitterList.value = received_msg_data.splitters
-      modelList.value = received_msg_data.models
-      judgerList.value = received_msg_data.judgers
-    }
+const connectUrl = ref('localhost')
+const connectPort = ref('8765')
+const showConnectInfoWindow = ref(false)
 
-    else if (received_msg.type === 'print') {
-      runningOutput.value.push(received_msg_data.content as never)
-    }
-  } else {
-    console.error(received_msg.data);
+let ws: WebSocket | null = null
+const connect = () => {
+  ws = new WebSocket('ws://' + connectUrl.value + ':' + connectPort.value)
+  ws.onopen = () => {
+    isConnectedToServer.value = true
+    showConnectInfoWindow.value = false
+    ElMessage({
+      message: '连接成功',
+      type: 'success',
+    })
+    ws?.send(JSON.stringify({
+      'type': 'overview', 
+      'params': {}
+    }))
   }
+  ws.onmessage = (evt) => {
+    var received_msg = JSON.parse(evt.data);
+    // console.log(received_msg);
+    
+    if (received_msg.status === 200) {
+      const received_msg_data = received_msg.data
+      if (received_msg.type === 'overview') {
+        datasetList.value = received_msg_data.datasets
+        splitterList.value = received_msg_data.splitters
+        modelList.value = received_msg_data.models
+        judgerList.value = received_msg_data.judgers
+      }
+
+      else if (received_msg.type === 'print') {
+        runningOutput.value.push(received_msg_data.content as never)
+      }
+    } else {
+      console.error(received_msg.data);
+    }
+  }
+  ws.onclose = () => {
+    isConnectedToServer.value = false
+    showConnectInfoWindow.value = true
+    ElMessage.error('连接已断开')
+  }
+  ws.onerror = () => {
+    ElMessage.error('连接失败')
+    showConnectInfoWindow.value = true
+  } 
 }
-ws.onclose = () => {
-  isConnectedToServer.value = false
-  ElMessage.error('与 server 的连接已断开。请重启 python 服务后刷新页面')
-}
+
+connect()
 
 const datasetName = ref(null)
 const datasetList = ref([])
@@ -111,6 +138,9 @@ const judgerName = ref(null)
 const judgerList = ref([])
 
 const isConnectedToServer = ref(false)
+const onClickConnect = () => {
+  connect()
+}
 
 const clickButton = () => {
   if (!isConnectedToServer.value) {
@@ -122,7 +152,7 @@ const clickButton = () => {
     return
   }
   runningOutput.value = []
-  ws.send(JSON.stringify({
+  ws?.send(JSON.stringify({
     'type': 'run', 
     'params': {
       'datasetName': datasetName.value, 
