@@ -59,10 +59,15 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
-import { reactive, ref } from 'vue'
+import { ref } from 'vue'
 
 let ws: WebSocket = new WebSocket('ws://localhost:8765')
 ws.onopen = () => {
+  isConnectedToServer.value = true
+  ElMessage({
+    message: '连接成功',
+    type: 'success',
+  })
   ws.send(JSON.stringify({
     'type': 'overview', 
     'params': {}
@@ -88,6 +93,10 @@ ws.onmessage = (evt) => {
     console.error(received_msg.data);
   }
 }
+ws.onclose = () => {
+  isConnectedToServer.value = false
+  ElMessage.error('与 server 的连接已断开。请重启 python 服务后刷新页面')
+}
 
 const datasetName = ref(null)
 const datasetList = ref([])
@@ -101,7 +110,13 @@ const modelList = ref([])
 const judgerName = ref(null)
 const judgerList = ref([])
 
+const isConnectedToServer = ref(false)
+
 const clickButton = () => {
+  if (!isConnectedToServer.value) {
+    ElMessage.error('与 server 的连接已断开。请重启 python 服务后刷新页面')
+    return
+  }
   if (!datasetName.value || !splitterName.value || !modelName.value || !judgerName.value) {
     ElMessage.error('您的选项不完整')
     return
