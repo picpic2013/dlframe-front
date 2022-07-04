@@ -57,7 +57,7 @@
   </div>
 
   <el-dialog v-model="showConnectInfoWindow" title="连接地址" :show-close="false">
-    <el-form label-width="120px">
+    <el-form label-width="40px">
       <el-form-item label="Url">
         <el-input v-model="connectUrl" />
       </el-form-item>
@@ -118,7 +118,7 @@ const connect = () => {
     ElMessage.error('连接已断开')
   }
   ws.onerror = () => {
-    ElMessage.error('连接失败')
+    ElMessage.error('连接失败(地址错误 / 协议错误 / 服务器错误)')
     showConnectInfoWindow.value = true
   } 
 }
