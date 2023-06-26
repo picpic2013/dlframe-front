@@ -1,44 +1,10 @@
 <template>
   <div>
-    <!-- 数据集 -->
-    <div>
-      <h2>数据集</h2>
-      <div v-if="datasetList.length === 0">没有数据集</div>
-      <el-radio-group v-model="datasetName">
-        <el-radio v-for="(name, idx) in datasetList" :key="name" :label="name">{{ name }}</el-radio>
-      </el-radio-group>
-    </div>
-
-    <el-divider />
-    
-    <!-- 数据集切分器 -->
-    <div>
-      <h2>数据集切分器</h2>
-      <div v-if="splitterList.length === 0">没有数据集切分器</div>
-      <el-radio-group v-model="splitterName">
-        <el-radio v-for="(name, idx) in splitterList" :key="name" :label="name">{{ name }}</el-radio>
-      </el-radio-group>
-    </div>
-
-    <el-divider />
-
-    <!-- 模型 -->
-    <div>
-      <h2>模型</h2>
-      <div v-if="modelList.length === 0">没有模型</div>
-      <el-radio-group v-model="modelName">
-        <el-radio v-for="(name, idx) in modelList" :key="name" :label="name">{{ name }}</el-radio>
-      </el-radio-group>
-    </div>
-
-    <el-divider />
-
-    <!-- 结果判别器 -->
-    <div>
-      <h2>结果判别器</h2>
-      <div v-if="judgerList.length === 0">没有结果判别器</div>
-      <el-radio-group v-model="judgerName">
-        <el-radio v-for="(name, idx) in judgerList" :key="name" :label="name">{{ name }}</el-radio>
+    <div v-for="(value, key) in configDict" :key="key">
+      <h2>{{ key }}</h2>
+      <div v-if="value.length === 0">没有 {{ key }}</div>
+      <el-radio-group v-model="configValue[key]">
+        <el-radio v-for="(name, idx) in value" :key="idx" :label="name">{{ name }}</el-radio>
       </el-radio-group>
     </div>
 
@@ -51,7 +17,10 @@
     <div>
       <h2>运行结果</h2>
       <div class="running-res">
-        <div v-for="(content, idx) in runningOutput" :key="idx">{{ content }}</div>
+        <div v-for="(content, idx) in runningOutput" :key="idx">
+          <p v-if="content.type == 'string'">{{ content.content }}</p>
+          <img v-if="content.type == 'image'" :src="'data:image/jpeg;base64,'+content.content" />
+        </div>
       </div>
     </div>
   </div>
@@ -77,6 +46,13 @@ const connectUrl = ref('localhost')
 const connectPort = ref('8765')
 const showConnectInfoWindow = ref(false)
 
+interface DlFrameConfigInterface {
+  [key: string]: string;
+}
+interface DlFrameInspectionInterface {
+  [key: string]: Array<string>;
+}
+
 let ws: WebSocket | null = null
 const connect = () => {
   ws = new WebSocket('ws://' + connectUrl.value + ':' + connectPort.value)
@@ -99,14 +75,28 @@ const connect = () => {
     if (received_msg.status === 200) {
       const received_msg_data = received_msg.data
       if (received_msg.type === 'overview') {
-        datasetList.value = received_msg_data.datasets
-        splitterList.value = received_msg_data.splitters
-        modelList.value = received_msg_data.models
-        judgerList.value = received_msg_data.judgers
+        // console.log(received_msg.data)
+        configDict.value = received_msg.data
+        
+        const tmpDict: DlFrameConfigInterface = {}
+        for (let i in configDict.value) {
+          tmpDict[i] = ''
+        }
+        configValue.value = tmpDict
       }
 
       else if (received_msg.type === 'print') {
-        runningOutput.value.push(received_msg_data.content as never)
+        runningOutput.value.push({
+          'type': 'string', 
+          'content': received_msg_data.content
+        })
+      }
+
+      else if (received_msg.type === 'imshow') {
+        runningOutput.value.push({
+          'type': 'image', 
+          'content': received_msg_data.content
+        })
       }
     } else {
       console.error(received_msg.data);
@@ -125,17 +115,8 @@ const connect = () => {
 
 connect()
 
-const datasetName = ref(null)
-const datasetList = ref([])
-
-const splitterName = ref(null)
-const splitterList = ref([])
-
-const modelName = ref(null)
-const modelList = ref([])
-
-const judgerName = ref(null)
-const judgerList = ref([])
+const configDict = ref<DlFrameInspectionInterface>({})
+const configValue = ref<DlFrameConfigInterface>({})
 
 const isConnectedToServer = ref(false)
 const onClickConnect = () => {
@@ -147,23 +128,29 @@ const clickButton = () => {
     ElMessage.error('与 server 的连接已断开。请重启 python 服务后刷新页面')
     return
   }
-  if (!datasetName.value || !splitterName.value || !modelName.value || !judgerName.value) {
-    ElMessage.error('您的选项不完整')
-    return
+  for (let k in configDict.value) {
+    if (configDict.value[k].length === 0) {
+      ElMessage.error('没有 ' + k)
+      return
+    }
+  }
+  for (let k in configValue.value) {
+    if (configValue.value[k] == '') {
+      ElMessage.error('您的选项不完整')
+      return
+    }
   }
   runningOutput.value = []
   ws?.send(JSON.stringify({
     'type': 'run', 
-    'params': {
-      'datasetName': datasetName.value, 
-      'splitterName': splitterName.value, 
-      'modelName': modelName.value, 
-      'judgerName': judgerName.value
-    }
+    'params': configValue.value
   }))
 }
 
-const runningOutput = ref([])
+interface RunningOutputInterface {
+  [key: string]: string;
+}
+const runningOutput = ref<Array<RunningOutputInterface>>([])
 </script>
 
 <style scoped>
