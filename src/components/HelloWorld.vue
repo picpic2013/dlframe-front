@@ -83,6 +83,7 @@ const connect = () => {
           tmpDict[i] = ''
         }
         configValue.value = tmpDict
+        runningOutput.value = []
       }
 
       else if (received_msg.type === 'print') {
